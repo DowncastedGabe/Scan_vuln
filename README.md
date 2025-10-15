@@ -1,15 +1,12 @@
-Analisador de Vulnerabilidades com Nmap em Python
-Este é um script em Python que automatiza a varredura de vulnerabilidades em um alvo (IP ou domínio) utilizando a poderosa ferramenta Nmap. O script foi desenvolvido com uma estrutura de classes (Programação Orientada a Objetos) para organizar o código, tornando-o mais limpo e reutilizável.
+Este projeto foi criado para simplificar e agilizar a fase inicial de uma auditoria de segurança ou pentest. Ao fornecer um endereço IP, o script executa um escaneamento detalhado e apresenta um relatório claro e organizado, destacando as portas abertas e as possíveis falhas de segurança encontradas, facilitando a análise e a tomada de decisões.
 
-Ele processa os resultados da varredura e os exibe de forma organizada, destacando as portas abertas, os serviços em execução e as possíveis vulnerabilidades identificadas pelos scripts do Nmap.
+Entrada de Alvo Interativa: Solicita ao usuário o endereço IP do alvo.
 
-✨ Funcionalidades
-Interface Simples: Solicita um alvo via linha de comando.
+Detecção de Serviços e Versões: Utiliza o argumento -sV do Nmap para identificar qual software e versão estão rodando em cada porta.
 
-Varredura Detalhada: Executa o Nmap com detecção de versão de serviço (-sV) e scripts de vulnerabilidade (--script vuln).
+Escaneamento de Vulnerabilidades: Executa todos os scripts da categoria vuln do Nmap (--script vuln) para encontrar falhas de segurança conhecidas.
 
-Estrutura Organizada: Utiliza uma classe NmapScanner para encapsular a lógica da varredura e da exibição dos resultados.
+Relatório Organizado: Exibe os resultados de forma estruturada, mostrando cada porta aberta, o serviço correspondente e os detalhes das vulnerabilidades encontradas.
 
-Saída Legível: Apresenta as informações de forma clara, separando por host, protocolo e porta.
+Tratamento de Erros: Verifica se o Nmap está instalado e informa caso o host alvo esteja offline.
 
-Tratamento de Erros: Inclui verificação básica para o caso de o Nmap não estar instalado ou o alvo não ser encontrado.
