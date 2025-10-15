@@ -1,86 +1,104 @@
 import nmap
+import subprocess
+import time
 import sys
 
-def scan_network(target):
-    try:
-        nm = nmap.PortScanner()
-        print(f"\n [*] Iniciando varredura de rede em {target}...")
-        print(" [*] Isso pode levar algum tempo, por favor aguarde...\n")
+# --- CONFIGURAÇÕES ---
+# O endereço IP do alvo que você tem permissão para escanear.
+# NUNCA use em um alvo sem permissão. Use o IP do seu Metasploitable.
+TARGET_IP = '192.168.1.10' # MUDE PARA O IP DO SEU ALVO
 
-        #Executa a varredura`
-        # Argumentos: -sS (varredura TCP SYN), -O (detecção de SO), -sV (detecção de versão)
-        # --script vuln (executa scripts de vulnerabilidade)
-        # --open (mostra apenas portas abertas)
-        nm.scan(target, arguments='-sS -O -sV --script vuln --open')
-    
+def run_nmap_scan(target):
+    """
+    Executa um scan detalhado do Nmap e retorna o resultado.
+    """
+    print(f"[*] Iniciando scan Nmap em {target}... Por favor, aguarde.")
+    nm = nmap.PortScanner()
+    # -sV: Detecta a versão dos serviços
+    # -sC: Usa scripts padrão para obter mais informações
+    # -T4: Acelera o scan (use com cuidado)
+    try:
+        nm.scan(target, arguments='-sV -sC -T4')
+        return nm
     except nmap.PortScannerError:
-        print(" [!] Erro: Nmap não está instalado ou não foi encontrado.")
+        print(f"[!] Erro: Nmap não encontrado. Verifique se está instalado e no PATH do sistema.")
         sys.exit(1)
     except Exception as e:
-        print(f" [!] Erro: {e}")
+        print(f"[!] Um erro inesperado ocorreu com o Nmap: {e}")
         sys.exit(1)
-    
 
-    #verifica se algum host foi encontrado
-    if not nm.all_hosts():
-        print(" [!] Nenhum host encontrado. Verifique o alvo e tente novamente.")
+
+def search_metasploit(query):
+    """
+    Usa o msfconsole para pesquisar por módulos relacionados a uma query.
+    """
+    print(f"    -> Pesquisando no Metasploit por: '{query}'")
+    if not query:
+        return "Nenhuma query válida fornecida."
+
+    # Comando que será executado no shell
+    # Inicia o msfconsole, espera, busca e sai.
+    command = f"msfconsole -q -x 'search {query}; exit'"
+    
+    try:
+        # Usamos o subprocess para rodar o comando e capturar a saída
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            return f"    [!] Erro ao executar msfconsole. Verifique se o Metasploit está instalado corretamente.\n{result.stderr}"
+            
+        return result.stdout
+    except subprocess.TimeoutExpired:
+        return "    [!] A pesquisa no Metasploit demorou demais (timeout)."
+    except Exception as e:
+        return f"    [!] Um erro inesperado ocorreu ao chamar o msfconsole: {e}"
+
+def main():
+    """
+    Função principal que orquestra o scan e a pesquisa.
+    """
+    scan_results = run_nmap_scan(TARGET_IP)
+
+    if not scan_results.all_hosts():
+        print(f"[!] Nenhum host encontrado em {TARGET_IP}. O host está ativo?")
         return
-    
-    # Itera sobre todos os hosts encontrados
-    for host in nm.all_hosts():
-        print("\n" + "="*50)
-        print(f"Host: {host} ({nm[host].hostname()})")
-        print(f"Estado: {nm[host].state()}")
-        print("="*50)
 
-        #itera sobre todos os protocolos (tcp, udp, etc.)
-        for proto in nm[host].all_protocols():
-            print(f"\nProtocolo: {proto}")
+    for host in scan_results.all_hosts():
+        print("-" * 50)
+        print(f"Host: {host} ({scan_results[host].hostname()})")
+        print(f"Estado: {scan_results[host].state()}")
+        print("-" * 50)
 
-            #obtém todas as portas do protocolo
-            list_ports = nm[host][proto].keys()
-            sorted_ports = sorted(list_ports)
-
+        for proto in scan_results[host].all_protocols():
+            print(f"\nProtocolo: {proto.upper()}")
+            ports = scan_results[host][proto].keys()
+            sorted_ports = sorted(ports)
 
             for port in sorted_ports:
-                port_info = nm[host][proto][port]
-                print(f"\n  [+] Porta {port}/{proto}")
-                print(f"    - Estado: {port_info['state']}")
-                print(f"    - Serviço: {port_info['name']}")
-                if 'product' in port_info and port_info['product']:
-                    print(f"    - Produto: {port_info['product']}")
-                if 'version' in port_info and port_info['version']:
-                    print(f"    - Versão: {port_info['version']}")
+                service_info = scan_results[host][proto][port]
+                product = service_info.get('product', '')
+                version = service_info.get('version', '')
+                name = service_info.get('name', '')
                 
-                #Verifica se há scripts de vulnerabilidade
-                if 'script' in port_info:
-                    print("    - Vulnerabilidades:")
-                    for script_name, output in port_info['script'].items():
-                        print(f"      * {script_name}: {output}")
-                        
-                        for line in output.split('\n'):
-                            if line.strip(): #ignora linhas em branco
-                                print(f"        {line.strip()}")
-                else:
-                    print("    - Nenhuma vulnerabilidade encontrada.")
-        #Verifica o sistema operacional
-        if 'osmatch' in nm[host]:
-            print("\nSistema Operacional:")
-            for os in nm[host]['osmatch']:
-                print(f"  - {os['name']} (Precisão: {os['accuracy']}%)")
-                for os_class in os['osclass']:
-                    print(f"    * Tipo: {os_class['type']}, Plataforma: {os_class['platform']}, Versão: {os_class.get('version', 'N/A')}")
-                    print(f"      CPE: {', '.join(os_class.get('cpe', []))}")
-        else:
-            print("\nSistema Operacional: Não detectado")
+                print(f"\n[+] Porta {port}:")
+                print(f"  - Estado: {service_info['state']}")
+                print(f"  - Serviço: {name}")
+                print(f"  - Produto: {product}")
+                print(f"  - Versão: {version}")
+
+                # Criamos uma query de pesquisa para o Metasploit
+                # A pesquisa é mais eficaz com o nome do produto
+                search_query = product if product else name
+                if search_query:
+                    metasploit_results = search_metasploit(search_query.strip())
+                    print("\n    --- Resultados do Metasploit ---")
+                    print(metasploit_results)
+                    print("    ----------------------------------")
+                    # Pequena pausa para não sobrecarregar
+                    time.sleep(2)
 
 if __name__ == "__main__":
-    try:
-        target_host = input("Digite o alvo (IP ou Dominio) para escanear:")
-        if not target_host:
-            print(" [!] Alvo inválido. Por favor, insira um IP ou domínio válido.")
-        else:
-            scan_network(target_host)
-    except KeyboardInterrupt:
-        print("\n [*] Varredura interrompida pelo usuário.")
-        sys.exit(0)
+    if TARGET_IP == '192.168.1.10': # Lembrete para o usuário
+        print("[!] ATENÇÃO: O IP do alvo está configurado como '192.168.1.10'.")
+        print("[!] Por favor, altere a variável 'TARGET_IP' no script para o IP do seu alvo autorizado.")
+    else:
+        main()
